@@ -12,6 +12,7 @@ all share the SAME single system.
 """
 
 import os
+import sys
 import time
 import socket
 import uuid
@@ -19,6 +20,9 @@ import threading
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Optional
+
+# Ensure backend folder is in Python search path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
