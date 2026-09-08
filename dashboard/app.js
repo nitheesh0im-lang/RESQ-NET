@@ -87,9 +87,20 @@ function setupEventListeners() {
     document.getElementById("btnPauseMission").addEventListener("click", pauseMission);
     document.getElementById("btnResumeMission").addEventListener("click", resumeMission);
 
-    // Auth Modal
+    // Auth Modal & Login/Logout Toggle
     document.getElementById("btnLoginModal").addEventListener("click", () => {
-        document.getElementById("loginModal").style.display = "flex";
+        if (adminToken) {
+            // Logout
+            adminToken = "";
+            localStorage.removeItem("resq_admin_token");
+            initAuthUI();
+            logEvent("Auth", "Admin logged out");
+        } else {
+            // Open Login Modal
+            const errEl = document.getElementById("loginError");
+            if (errEl) errEl.style.display = "none";
+            document.getElementById("loginModal").style.display = "flex";
+        }
     });
 
     document.getElementById("btnCloseModal").addEventListener("click", () => {
@@ -99,12 +110,42 @@ function setupEventListeners() {
     document.getElementById("loginForm").addEventListener("submit", handleLogin);
 }
 
-// Check stored token
-function initAuthUI() {
+// Check stored token or auto-login with default credentials
+async function initAuthUI() {
+    const badge = document.getElementById("userRoleBadge");
+    const btn = document.getElementById("btnLoginModal");
+
     if (adminToken) {
-        document.getElementById("userRoleBadge").innerHTML = `<i class="fa-solid fa-user-shield"></i> Admin Logged In`;
-        document.getElementById("btnLoginModal").innerText = "Logout";
+        badge.innerHTML = `<i class="fa-solid fa-user-shield"></i> Admin Logged In`;
+        btn.innerHTML = `<i class="fa-solid fa-right-from-bracket"></i> Logout`;
+        btn.style.background = "#EF4444";
+        return;
     }
+
+    // Try auto-login with standard admin credentials for seamless control
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: "admin1", password: "admin123" })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            adminToken = data.access_token;
+            localStorage.setItem("resq_admin_token", adminToken);
+            badge.innerHTML = `<i class="fa-solid fa-user-shield"></i> Admin Logged In`;
+            btn.innerHTML = `<i class="fa-solid fa-right-from-bracket"></i> Logout`;
+            btn.style.background = "#EF4444";
+            logEvent("Auth", "Auto-authenticated Admin session.");
+            return;
+        }
+    } catch (e) {
+        console.warn("Auto admin auth offline check.");
+    }
+
+    badge.innerHTML = `<i class="fa-solid fa-user"></i> Guest / Operator`;
+    btn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> Login`;
+    btn.style.background = "var(--accent-red)";
 }
 
 // Login Handler
@@ -112,6 +153,7 @@ async function handleLogin(e) {
     e.preventDefault();
     const username = document.getElementById("loginUsername").value;
     const password = document.getElementById("loginPassword").value;
+    const errEl = document.getElementById("loginError");
 
     try {
         const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -125,12 +167,22 @@ async function handleLogin(e) {
             localStorage.setItem("resq_admin_token", adminToken);
             document.getElementById("loginModal").style.display = "none";
             initAuthUI();
-            logEvent("Auth", `Successfully logged in as Admin (${data.name})`);
+            logEvent("Auth", `Successfully logged in as Admin (${data.name || username})`);
         } else {
-            alert(data.detail || "Login failed");
+            if (errEl) {
+                errEl.innerText = `❌ ${data.detail || "Invalid credentials"}`;
+                errEl.style.display = "block";
+            } else {
+                alert(data.detail || "Login failed");
+            }
         }
     } catch (err) {
-        alert("Unable to connect to server");
+        if (errEl) {
+            errEl.innerText = "❌ Unable to connect to backend server";
+            errEl.style.display = "block";
+        } else {
+            alert("Unable to connect to server");
+        }
     }
 }
 
