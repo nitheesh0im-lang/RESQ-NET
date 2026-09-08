@@ -16,11 +16,13 @@ const API_BASE = (() => {
 })();
 
 let adminToken = localStorage.getItem("resq_admin_token") || "";
-let selectedFloor = "Floor 1";
-let selectedZone = "Zone 1";
+let displayedMapFloor = "Floor 1";
 let selectedIncidentId = null;
+let selectedIncidentFloor = null;
+let selectedIncidentZone = null;
 let activeMissionId = null;
 let currentRouteSteps = [];
+let latestRobotState = null;
 let isSimulating = false;
 
 // DOM Elements
@@ -54,13 +56,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Setup UI Event Listeners
 function setupEventListeners() {
-    // Floor Tabs
+    // Floor Tabs (viewing different floor maps without breaking selected incident)
     document.querySelectorAll(".tab-btn").forEach(btn => {
         btn.addEventListener("click", (e) => {
             document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
-            selectedFloor = btn.getAttribute("data-floor");
+            displayedMapFloor = btn.getAttribute("data-floor");
             renderMapMarkers();
+            if (latestRobotState) {
+                updateRobotPositionUI(latestRobotState.estimated_floor, latestRobotState.estimated_zone);
+            }
         });
     });
 
@@ -136,6 +141,7 @@ async function pollBackendState() {
         const iotRes = await fetch(`${API_BASE}/api/iot/state`);
         if (iotRes.ok) {
             const iotState = await iotRes.json();
+            latestRobotState = iotState;
             updateBooleanUI(iotState);
             updateRobotPositionUI(iotState.estimated_floor, iotState.estimated_zone);
         }
@@ -147,6 +153,9 @@ async function pollBackendState() {
             renderIncidentsList(incidents);
         }
 
+        document.getElementById("serverStatusBadge").className = "status-badge online";
+        document.getElementById("serverStatusBadge").innerHTML = `<span class="pulse-dot green"></span> SYSTEM ONLINE`;
+
     } catch (err) {
         document.getElementById("serverStatusBadge").className = "status-badge offline";
         document.getElementById("serverStatusBadge").innerHTML = `<span class="pulse-dot red"></span> SERVER OFFLINE`;
@@ -157,6 +166,11 @@ async function pollBackendState() {
 function renderIncidentsList(incidents) {
     incidentCountEl.innerText = incidents.length;
     if (incidents.length === 0) {
+        selectedIncidentId = null;
+        selectedIncidentFloor = null;
+        selectedIncidentZone = null;
+        activeIncidentLabelEl.innerText = "No Active Incident Selected";
+        renderMapMarkers();
         incidentsListEl.innerHTML = `
             <div class="empty-state">
                 <i class="fa-solid fa-shield-heart"></i>
@@ -179,21 +193,35 @@ function renderIncidentsList(incidents) {
             </div>`;
     });
     incidentsListEl.innerHTML = html;
+
+    // Auto select first active incident if none selected yet
+    if (!selectedIncidentId && incidents.length > 0) {
+        selectIncident(incidents[0].id, incidents[0].floor, incidents[0].zone);
+    }
 }
 
 // Select Incident
 function selectIncident(id, floor, zone) {
     selectedIncidentId = id;
-    selectedFloor = floor;
-    selectedZone = zone;
+    selectedIncidentFloor = floor;
+    selectedIncidentZone = zone;
+    displayedMapFloor = floor;
 
-    // Switch floor tab
+    // Switch Building Map floor tab to victim's floor
     document.querySelectorAll(".tab-btn").forEach(btn => {
         btn.classList.toggle("active", btn.getAttribute("data-floor") === floor);
     });
 
+    // Auto sync Admin Route Editor dropdowns to victim's floor & zone
+    editorFloorSelect.value = floor;
+    editorZoneSelect.value = zone;
+    loadZoneRoute(floor, zone);
+
     activeIncidentLabelEl.innerText = `Selected: ${id} (${floor} -> ${zone})`;
     renderMapMarkers();
+    if (latestRobotState) {
+        updateRobotPositionUI(latestRobotState.estimated_floor, latestRobotState.estimated_zone);
+    }
     logEvent("SOS Select", `Selected Incident ${id} at ${floor} -> ${zone}`);
 }
 
@@ -205,7 +233,10 @@ function renderMapMarkers() {
         const zoneCard = document.getElementById(`zone-${zNum}`);
         const tag = document.getElementById(`zone-${zNum}-tag`);
 
-        if (selectedZone === z) {
+        // Check if victim is on the currently displayed map floor & zone
+        const isVictimHere = (selectedIncidentId !== null && displayedMapFloor === selectedIncidentFloor && selectedIncidentZone === z);
+
+        if (isVictimHere) {
             targetMarker.style.display = "block";
             zoneCard.classList.add("has-victim");
             tag.innerText = "VICTIM LOCATED";
@@ -230,7 +261,7 @@ function updateRobotPositionUI(rFloor, rZone) {
         const robotMarker = document.getElementById(`zone-${zNum}-robot`);
         const zoneCard = document.getElementById(`zone-${zNum}`);
 
-        if (selectedFloor === rFloor && z === rZone) {
+        if (displayedMapFloor === rFloor && z === rZone) {
             robotMarker.style.display = "block";
             zoneCard.classList.add("has-robot");
         } else {
