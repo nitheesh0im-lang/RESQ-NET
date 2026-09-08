@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RESQ-NET | Disaster Response Control Center</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- HEADER -->
+    <header class="app-header">
+        <div class="brand">
+            <div class="brand-icon"><i class="fa-solid fa-truck-medical"></i></div>
+            <div>
+                <h1>RESQ-NET</h1>
+                <p class="subtitle">SOS-to-Robot Disaster Response Operations</p>
+            </div>
+        </div>
+
+        <div class="header-status">
+            <div class="status-badge" id="serverStatusBadge">
+                <span class="pulse-dot"></span>
+                <span>SYSTEM ONLINE</span>
+            </div>
+            <div class="mode-badge">
+                <i class="fa-solid fa-crosshairs"></i> ESTIMATED BUILDING ZONE
+            </div>
+            <button class="btn-emergency-stop" id="btnEmergencyStop">
+                <i class="fa-solid fa-hand-paper"></i> EMERGENCY STOP
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTROL CENTER CONTAINER -->
+    <main class="dashboard-grid">
+        
+        <!-- LEFT PANEL: SOS INCIDENTS & PRIORITY RANKING -->
+        <section class="card panel-incidents">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-bell"></i> Active SOS Incidents</h2>
+                <span class="counter-badge" id="incidentCount">0</span>
+            </div>
+            <div class="card-body">
+                <!-- Admin Auth Bar -->
+                <div class="auth-bar" id="authBar">
+                    <span id="userRoleBadge" class="user-role-badge">Admin: Rescue Operator</span>
+                    <button class="btn-sm" id="btnLoginModal"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+                </div>
+
+                <div class="incidents-list" id="incidentsList">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-shield-heart"></i>
+                        <p>No active emergency SOS requests.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CENTER PANEL: 3-FLOOR BUILDING MAP & ROUTE EDITOR -->
+        <section class="panel-center">
+            
+            <!-- 3-FLOOR MAP VISUALIZER -->
+            <div class="card card-map">
+                <div class="card-header map-header">
+                    <div class="map-title">
+                        <h2><i class="fa-solid fa-building-user"></i> Building Map (3 Floors / 9 Zones)</h2>
+                        <span class="active-incident-label" id="activeIncidentLabel">Selected: None</span>
+                    </div>
+                    
+                    <!-- Floor Switcher Tabs -->
+                    <div class="floor-tabs" id="floorTabs">
+                        <button class="tab-btn active" data-floor="Floor 1">Floor 1</button>
+                        <button class="tab-btn" data-floor="Floor 2">Floor 2</button>
+                        <button class="tab-btn" data-floor="Floor 3">Floor 3</button>
+                    </div>
+                </div>
+
+                <div class="card-body map-body">
+                    <!-- 3-Zone Floor Grid -->
+                    <div class="floor-grid" id="floorGrid">
+                        <!-- Zone 1 -->
+                        <div class="zone-card" id="zone-1" data-zone="Zone 1">
+                            <div class="zone-header">
+                                <span class="zone-name"><i class="fa-solid fa-location-dot"></i> Zone 1</span>
+                                <span class="zone-status-tag" id="zone-1-tag">SAFE</span>
+                            </div>
+                            <div class="zone-content">
+                                <div class="target-marker" id="zone-1-target" style="display:none;">
+                                    <i class="fa-solid fa-user-injured"></i> Victim Here
+                                </div>
+                                <div class="robot-marker" id="zone-1-robot" style="display:none;">
+                                    <i class="fa-solid fa-robot"></i> Robot (Estimated)
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Zone 2 -->
+                        <div class="zone-card" id="zone-2" data-zone="Zone 2">
+                            <div class="zone-header">
+                                <span class="zone-name"><i class="fa-solid fa-location-dot"></i> Zone 2</span>
+                                <span class="zone-status-tag" id="zone-2-tag">SAFE</span>
+                            </div>
+                            <div class="zone-content">
+                                <div class="target-marker" id="zone-2-target" style="display:none;">
+                                    <i class="fa-solid fa-user-injured"></i> Victim Here
+                                </div>
+                                <div class="robot-marker" id="zone-2-robot" style="display:none;">
+                                    <i class="fa-solid fa-robot"></i> Robot (Estimated)
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Zone 3 -->
+                        <div class="zone-card" id="zone-3" data-zone="Zone 3">
+                            <div class="zone-header">
+                                <span class="zone-name"><i class="fa-solid fa-location-dot"></i> Zone 3</span>
+                                <span class="zone-status-tag" id="zone-3-tag">SAFE</span>
+                            </div>
+                            <div class="zone-content">
+                                <div class="target-marker" id="zone-3-target" style="display:none;">
+                                    <i class="fa-solid fa-user-injured"></i> Victim Here
+                                </div>
+                                <div class="robot-marker" id="zone-3-robot" style="display:none;">
+                                    <i class="fa-solid fa-robot"></i> Robot (Estimated)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Digital Preview Simulation Bar -->
+                    <div class="simulation-preview-bar" id="simPreviewBar" style="display:none;">
+                        <div class="sim-header">
+                            <span><i class="fa-solid fa-laptop-code"></i> SOFTWARE DIGITAL SIMULATOR</span>
+                            <span id="simStepText">Step 0 / 0</span>
+                        </div>
+                        <div class="progress-track">
+                            <div class="progress-fill" id="simProgressFill" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ADMIN ROUTE EDITOR -->
+            <div class="card card-route-editor">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-route"></i> Admin Route Editor & Planner</h2>
+                    <div class="editor-controls">
+                        <select id="editorFloorSelect" class="form-select">
+                            <option value="Floor 1">Floor 1</option>
+                            <option value="Floor 2" selected>Floor 2</option>
+                            <option value="Floor 3">Floor 3</option>
+                        </select>
+                        <select id="editorZoneSelect" class="form-select">
+                            <option value="Zone 1" selected>Zone 1</option>
+                            <option value="Zone 2">Zone 2</option>
+                            <option value="Zone 3">Zone 3</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="steps-editor-table">
+                        <div class="table-head">
+                            <span>Step #</span>
+                            <span>Direction</span>
+                            <span>Duration (Sec)</span>
+                            <span>Action</span>
+                        </div>
+                        <div class="table-body" id="routeStepsList">
+                            <!-- Dynamic route steps populated by JS -->
+                        </div>
+                    </div>
+
+                    <div class="editor-actions">
+                        <button class="btn-secondary" id="btnAddStep"><i class="fa-solid fa-plus"></i> Add Step</button>
+                        <button class="btn-primary" id="btnSaveRoute"><i class="fa-solid fa-floppy-disk"></i> Save Route</button>
+                        <button class="btn-warning" id="btnToggleObstacle"><i class="fa-solid fa-ban"></i> Toggle Corridor Blocked</button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RIGHT PANEL: ROBOT TELEMETRY & 6-BOOLEAN CONTROLLER -->
+        <section class="card panel-robot">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-robot"></i> Robot Status & Telemetry</h2>
+                <span class="status-pill" id="robotStatusPill">IDLE</span>
+            </div>
+            <div class="card-body">
+                
+                <!-- Robot Overview info -->
+                <div class="robot-info-box">
+                    <div class="info-row">
+                        <span class="info-label">Robot Name:</span>
+                        <span class="info-val" id="robotNameVal">ResQ-OmniBot (R1)</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Estimated Position:</span>
+                        <span class="info-val highlight" id="robotPositionVal">Floor 1 -> Zone 1</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Battery Level:</span>
+                        <span class="info-val" id="robotBatteryVal">100%</span>
+                    </div>
+                </div>
+
+                <!-- 6-BOOLEAN DIRECTIONAL MONITOR -->
+                <div class="boolean-monitor-box">
+                    <h3><i class="fa-solid fa-microchip"></i> 6-Boolean Directional State</h3>
+                    <p class="section-note">Strictly 1 Active Boolean Invariant</p>
+                    
+                    <div class="boolean-grid">
+                        <div class="bool-card" id="bool-north">
+                            <span class="bool-title">NORTH</span>
+                            <span class="bool-state">OFF</span>
+                        </div>
+                        <div class="bool-card" id="bool-south">
+                            <span class="bool-title">SOUTH</span>
+                            <span class="bool-state">OFF</span>
+                        </div>
+                        <div class="bool-card" id="bool-northwest">
+                            <span class="bool-title">NORTHWEST</span>
+                            <span class="bool-state">OFF</span>
+                        </div>
+                        <div class="bool-card" id="bool-southeast">
+                            <span class="bool-title">SOUTHEAST</span>
+                            <span class="bool-state">OFF</span>
+                        </div>
+                        <div class="bool-card" id="bool-cw">
+                            <span class="bool-title">CW (Clockwise)</span>
+                            <span class="bool-state">OFF</span>
+                        </div>
+                        <div class="bool-card" id="bool-ccw">
+                            <span class="bool-title">CCW (Counter-CW)</span>
+                            <span class="bool-state">OFF</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MISSION DISPATCH CONTROLS -->
+                <div class="mission-controls-box">
+                    <h3><i class="fa-solid fa-gamepad"></i> Mission Control Panel</h3>
+                    <div class="control-buttons-grid">
+                        <button class="btn-control btn-sim" id="btnSimulateRoute">
+                            <i class="fa-solid fa-play"></i> Simulate Route
+                        </button>
+                        <button class="btn-control btn-dispatch" id="btnDispatchRobot">
+                            <i class="fa-solid fa-paper-plane"></i> Dispatch Real Robot
+                        </button>
+                        <button class="btn-control btn-pause" id="btnPauseMission">
+                            <i class="fa-solid fa-pause"></i> Pause
+                        </button>
+                        <button class="btn-control btn-resume" id="btnResumeMission">
+                            <i class="fa-solid fa-forward"></i> Resume
+                        </button>
+                    </div>
+                </div>
+
+                <!-- LIVE EVENT LOG -->
+                <div class="logs-box">
+                    <h3><i class="fa-solid fa-list-ol"></i> Live Mission Log</h3>
+                    <div class="log-entries" id="logEntries">
+                        <div class="log-line">System initialized. Ready for distress signals.</div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- LOGIN MODAL -->
+    <div class="modal-overlay" id="loginModal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-lock"></i> Rescue Operator Login</h3>
+                <button class="btn-close" id="btnCloseModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="loginUsername" class="form-control" value="admin1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" class="form-control" value="admin123" required>
+                    </div>
+                    <button type="submit" class="btn-primary btn-full"><i class="fa-solid fa-right-to-bracket"></i> Login as Admin</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

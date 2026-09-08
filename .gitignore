@@ -1,0 +1,30 @@
+# Environment & Credentials
+.env
+.env.*
+*.env
+
+# SQLite Database Files
+*.db
+*.sqlite
+*.sqlite3
+backend/resq_net.db
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+backend/venv/
+ENV/
+env/
+
+# Logs & Temporary outputs
+*.log
+uvicorn_err.txt
+uvicorn_out.txt
+test_output.txt
+
+# IDE & Editor settings
+.vscode/
+.idea/
+.ds_store
