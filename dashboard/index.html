@@ -44,7 +44,10 @@
         <section class="card panel-incidents">
             <div class="card-header">
                 <h2><i class="fa-solid fa-bell"></i> Active SOS Incidents</h2>
-                <span class="counter-badge" id="incidentCount">0</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="counter-badge" id="incidentCount">0</span>
+                    <button class="btn-sm" id="btnClearAllIncidents" title="Clear All Test Incidents" style="background:#EF4444; font-size:11px; padding:3px 8px; border:none; border-radius:4px; color:#fff; cursor:pointer;"><i class="fa-solid fa-trash-can"></i> Clear All</button>
+                </div>
             </div>
             <div class="card-body">
                 <!-- Admin Auth Bar -->

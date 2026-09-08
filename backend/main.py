@@ -239,6 +239,32 @@ def update_incident_status(incident_id: str, new_status: str = Query(...), admin
     return {"id": inc.id, "status": inc.status}
 
 
+@app.delete("/api/incidents/{incident_id}")
+def delete_incident(incident_id: str, admin: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+    inc = db.query(IncidentModel).filter(IncidentModel.id == incident_id).first()
+    if not inc:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    # Clean up associated missions & mission steps
+    missions = db.query(MissionModel).filter(MissionModel.incident_id == incident_id).all()
+    for m in missions:
+        db.query(MissionStepModel).filter(MissionStepModel.mission_id == m.id).delete()
+        db.delete(m)
+
+    db.delete(inc)
+    db.commit()
+    return {"status": "SUCCESS", "deleted_id": incident_id}
+
+
+@app.delete("/api/incidents")
+def clear_all_incidents(admin: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+    db.query(MissionStepModel).delete()
+    db.query(MissionModel).delete()
+    db.query(IncidentModel).delete()
+    db.commit()
+    return {"status": "SUCCESS", "message": "All test incidents cleared"}
+
+
 # -----------------------------------------------------------------------------
 # 3. ROUTE MANAGER APIs
 # -----------------------------------------------------------------------------

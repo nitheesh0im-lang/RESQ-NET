@@ -87,6 +87,12 @@ function setupEventListeners() {
     document.getElementById("btnPauseMission").addEventListener("click", pauseMission);
     document.getElementById("btnResumeMission").addEventListener("click", resumeMission);
 
+    // Delete / Clear Incidents
+    const btnClearAll = document.getElementById("btnClearAllIncidents");
+    if (btnClearAll) {
+        btnClearAll.addEventListener("click", clearAllIncidents);
+    }
+
     // Auth Modal & Login/Logout Toggle
     document.getElementById("btnLoginModal").addEventListener("click", () => {
         if (adminToken) {
@@ -116,9 +122,10 @@ async function initAuthUI() {
     const btn = document.getElementById("btnLoginModal");
 
     if (adminToken) {
-        badge.innerHTML = `<i class="fa-solid fa-user-shield"></i> Admin Logged In`;
-        btn.innerHTML = `<i class="fa-solid fa-right-from-bracket"></i> Logout`;
+        badge.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#52C41A;"></i> Logged in as Admin`;
+        btn.innerHTML = `<i class="fa-solid fa-power-off"></i> Logout`;
         btn.style.background = "#EF4444";
+        btn.title = "Click to Logout of Admin session";
         return;
     }
 
@@ -133,9 +140,10 @@ async function initAuthUI() {
         if (res.ok) {
             adminToken = data.access_token;
             localStorage.setItem("resq_admin_token", adminToken);
-            badge.innerHTML = `<i class="fa-solid fa-user-shield"></i> Admin Logged In`;
-            btn.innerHTML = `<i class="fa-solid fa-right-from-bracket"></i> Logout`;
+            badge.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#52C41A;"></i> Logged in as Admin`;
+            btn.innerHTML = `<i class="fa-solid fa-power-off"></i> Logout`;
             btn.style.background = "#EF4444";
+            btn.title = "Click to Logout of Admin session";
             logEvent("Auth", "Auto-authenticated Admin session.");
             return;
         }
@@ -143,9 +151,9 @@ async function initAuthUI() {
         console.warn("Auto admin auth offline check.");
     }
 
-    badge.innerHTML = `<i class="fa-solid fa-user"></i> Guest / Operator`;
-    btn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> Login`;
-    btn.style.background = "var(--accent-red)";
+    badge.innerHTML = `<i class="fa-solid fa-user-xmark"></i> Guest / Logged Out`;
+    btn.innerHTML = `<i class="fa-solid fa-lock"></i> Click to Login`;
+    btn.style.background = "var(--soft-green)";
 }
 
 // Login Handler
@@ -183,6 +191,52 @@ async function handleLogin(e) {
         } else {
             alert("Unable to connect to server");
         }
+    }
+}
+
+// Delete single SOS incident
+async function deleteIncident(id) {
+    if (!confirm(`Delete test SOS incident ${id}?`)) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/incidents/${id}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${adminToken}` }
+        });
+        if (res.ok) {
+            if (selectedIncidentId === id) {
+                selectedIncidentId = null;
+                selectedIncidentFloor = null;
+                selectedIncidentZone = null;
+                activeIncidentLabelEl.innerText = "No Active Incident Selected";
+                renderMapMarkers();
+            }
+            logEvent("SOS Delete", `Deleted Incident ${id}`);
+            pollBackendState();
+        }
+    } catch (e) {
+        alert("Failed to delete incident");
+    }
+}
+
+// Clear all test SOS incidents
+async function clearAllIncidents() {
+    if (!confirm("Are you sure you want to delete ALL test SOS incidents?")) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/incidents`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${adminToken}` }
+        });
+        if (res.ok) {
+            selectedIncidentId = null;
+            selectedIncidentFloor = null;
+            selectedIncidentZone = null;
+            activeIncidentLabelEl.innerText = "No Active Incident Selected";
+            renderMapMarkers();
+            logEvent("SOS Clear All", "Cleared all test incidents");
+            pollBackendState();
+        }
+    } catch (e) {
+        alert("Failed to clear incidents");
     }
 }
 
@@ -238,7 +292,10 @@ function renderIncidentsList(incidents) {
             <div class="incident-item ${isSelected}" onclick="selectIncident('${inc.id}', '${inc.floor}', '${inc.zone}')">
                 <div class="incident-top">
                     <span class="incident-id">${inc.id}</span>
-                    <span class="urgency-badge urgency-${inc.urgency}">${inc.urgency}</span>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <span class="urgency-badge urgency-${inc.urgency}">${inc.urgency}</span>
+                        <button class="btn-delete-inc" onclick="event.stopPropagation(); deleteIncident('${inc.id}')" title="Delete SOS Incident"><i class="fa-solid fa-trash"></i></button>
+                    </div>
                 </div>
                 <div class="incident-loc"><i class="fa-solid fa-location-dot"></i> ${inc.floor} -> ${inc.zone}</div>
                 <div class="incident-reason">Score: <strong>${inc.priority_score.toFixed(1)}</strong> | ${inc.priority_reason || 'SOS Distress'}</div>
