@@ -48,6 +48,7 @@ const boolCards = {
 document.addEventListener("DOMContentLoaded", () => {
     initAuthUI();
     setupEventListeners();
+    initInteractiveBooleanCards();
     loadZoneRoute(editorFloorSelect.value, editorZoneSelect.value);
 
     // Start 1-second background polling
@@ -389,11 +390,40 @@ function updateBooleanUI(state) {
         if (card) {
             const isActive = state[key];
             card.classList.toggle("active", isActive);
-            card.querySelector(".bool-state").innerText = isActive ? "ON (ACTIVE)" : "OFF";
+            const stateSpan = card.querySelector(".bool-state");
+            if (stateSpan) {
+                stateSpan.innerText = isActive ? "ON" : "OFF";
+            }
         }
     });
 
     document.getElementById("robotStatusPill").innerText = state.active_direction !== "STOP" ? `MOVING (${state.active_direction})` : "IDLE";
+}
+
+// Make 6-Boolean Direction Cards Interactive (Click to manually test motors)
+function initInteractiveBooleanCards() {
+    const directions = ["NORTH", "SOUTH", "NORTHWEST", "SOUTHEAST", "CW", "CCW"];
+    directions.forEach(dir => {
+        const card = boolCards[dir];
+        if (card) {
+            card.style.cursor = "pointer";
+            card.title = `Click to test ${dir} motor command`;
+            card.addEventListener("click", async () => {
+                const isActive = card.classList.contains("active");
+                const targetDir = isActive ? "STOP" : dir;
+                try {
+                    const res = await fetch(`${API_BASE}/api/iot/set/${targetDir}`, { method: "POST" });
+                    if (res.ok) {
+                        const data = await res.json();
+                        updateBooleanUI(data.iot_state);
+                        logEvent("Manual Control", `Set motor state to ${targetDir}`);
+                    }
+                } catch (e) {
+                    console.error("Manual direction toggle error:", e);
+                }
+            });
+        }
+    });
 }
 
 // Route Editor: Load steps
