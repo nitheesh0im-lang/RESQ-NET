@@ -48,7 +48,7 @@ from schemas import (
     RobotResponse,
     MissionCreateRequest, MissionResponse,
 )
-from iot_controller import iot_controller
+from iot_controller import iot_controller, sim_controller
 from priority_engine import evaluate_priority
 from route_manager import seed_default_9zone_routes, get_route_by_floor_zone, save_or_update_route
 from robot_manager import initialize_default_robot, emergency_stop_robot, log_event
@@ -367,6 +367,23 @@ def set_manual_direction(direction: str):
     """Manual direction control from dashboard or testing."""
     result = iot_controller.set_direction(direction.upper())
     return {"status": "SUCCESS", "active_direction": result["active_direction"], "iot_state": result}
+
+
+# -----------------------------------------------------------------------------
+# 5B. UNITY 3D SIMULATION API (Used by Unity Engine)
+# -----------------------------------------------------------------------------
+@app.get("/api/simulation/state", response_model=IoTStateResponse)
+def get_simulation_state():
+    """Unity 3D Engine polls this endpoint every 300ms during software simulation."""
+    return sim_controller.get_state()
+
+
+@app.get("/api/simulation/set/{direction}")
+@app.post("/api/simulation/set/{direction}")
+def set_simulation_direction(direction: str):
+    """Dashboard simulation controller sets direction for Unity 3D engine."""
+    result = sim_controller.set_direction(direction.upper())
+    return {"status": "SUCCESS", "active_direction": result["active_direction"], "simulation_state": result}
 
 
 # -----------------------------------------------------------------------------

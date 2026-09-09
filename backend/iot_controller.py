@@ -94,5 +94,6 @@ class IoTController:
         }
 
 
-# Global Singleton Instance for backend controller
+# Global Singleton Instances for physical hardware and Unity simulator
 iot_controller = IoTController()
+sim_controller = IoTController()

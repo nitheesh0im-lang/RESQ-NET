@@ -535,14 +535,13 @@ async function saveZoneRoute() {
     }
 }
 
-// Digital Software Simulator & Dispatch Execution
+// Unity 3D & Digital Software Simulator (Does NOT move physical ESP-12E robot)
 async function runSoftwareSimulation() {
     if (!selectedIncidentId) {
         alert("Please click and select an active SOS Incident from the left panel first!");
         return;
     }
 
-    // First trigger visual simulation preview bar
     const simBar = document.getElementById("simPreviewBar");
     const progressFill = document.getElementById("simProgressFill");
     const stepText = document.getElementById("simStepText");
@@ -551,11 +550,13 @@ async function runSoftwareSimulation() {
         simBar.style.display = "block";
         let stepIdx = 0;
 
-        function stepSim() {
+        async function stepSim() {
             if (stepIdx >= currentRouteSteps.length) {
-                stepText.innerText = "Simulation Completed!";
+                stepText.innerText = "Unity 3D Simulation Completed!";
                 progressFill.style.width = "100%";
-                logEvent("Simulation", "Software digital preview finished.");
+                logEvent("Simulation", "🎮 Unity 3D & Digital Simulation finished.");
+                // Reset simulation state to STOP
+                fetch(`${API_BASE}/api/simulation/set/STOP`, { method: "POST" }).catch(() => {});
                 setTimeout(() => { simBar.style.display = "none"; }, 3000);
                 return;
             }
@@ -563,15 +564,22 @@ async function runSoftwareSimulation() {
             const step = currentRouteSteps[stepIdx];
             stepText.innerText = `Simulating Step ${stepIdx + 1}/${currentRouteSteps.length}: ${step.direction} (${step.duration_sec}s)`;
             progressFill.style.width = `${((stepIdx + 1) / currentRouteSteps.length) * 100}%`;
+
+            // Send simulation 6-Boolean state update for Unity 3D simulator
+            try {
+                await fetch(`${API_BASE}/api/simulation/set/${step.direction}`, { method: "POST" });
+            } catch (e) {
+                console.warn("Simulation endpoint broadcast note.");
+            }
+
             stepIdx++;
-            setTimeout(stepSim, 1200);
+            setTimeout(stepSim, step.duration_sec * 1000);
         }
 
         stepSim();
+    } else {
+        alert("No route steps loaded to simulate. Please save or select a route first.");
     }
-
-    // Automatically trigger mission dispatch to update backend incident status for Victim App
-    await dispatchRealRobot();
 }
 
 // Dispatch Real Robot
