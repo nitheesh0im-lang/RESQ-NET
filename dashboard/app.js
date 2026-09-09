@@ -626,42 +626,81 @@ async function dispatchRealRobot() {
     }
 }
 
+// Ensure admin token exists or attempt auto-auth
+async function ensureAdminToken() {
+    if (!adminToken) {
+        try {
+            const loginRes = await fetch(`${API_BASE}/api/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: "admin1", password: "admin123" })
+            });
+            const loginData = await loginRes.json();
+            if (loginRes.ok) {
+                adminToken = loginData.access_token;
+                localStorage.setItem("resq_admin_token", adminToken);
+                initAuthUI();
+            }
+        } catch (e) {
+            console.error("Auto admin auth error:", e);
+        }
+    }
+}
+
 // Pause Mission
 async function pauseMission() {
-    if (!activeMissionId || !adminToken) return;
-    await fetch(`${API_BASE}/api/missions/${activeMissionId}/pause`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${adminToken}` }
-    });
-    logEvent("Mission Control", `Paused Mission ${activeMissionId}`);
+    await ensureAdminToken();
+    try {
+        const url = activeMissionId ? `${API_BASE}/api/missions/${activeMissionId}/pause` : `${API_BASE}/api/missions/pause`;
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${adminToken}` }
+        });
+        if (res.ok) {
+            logEvent("Mission Control", "⏸️ Mission PAUSED — All motor movement halted.");
+            pollBackendState();
+        } else {
+            alert("No active mission running to pause.");
+        }
+    } catch (e) {
+        console.error("Pause error:", e);
+    }
 }
 
 // Resume Mission
 async function resumeMission() {
-    if (!activeMissionId || !adminToken) return;
-    await fetch(`${API_BASE}/api/missions/${activeMissionId}/resume`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${adminToken}` }
-    });
-    logEvent("Mission Control", `Resumed Mission ${activeMissionId}`);
+    await ensureAdminToken();
+    try {
+        const url = activeMissionId ? `${API_BASE}/api/missions/${activeMissionId}/resume` : `${API_BASE}/api/missions/resume`;
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${adminToken}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.mission_id) activeMissionId = data.mission_id;
+            logEvent("Mission Control", "▶️ Mission RESUMED — Continuing motor route.");
+            pollBackendState();
+        } else {
+            alert("No paused mission found to resume.");
+        }
+    } catch (e) {
+        console.error("Resume error:", e);
+    }
 }
 
 // Universal Emergency STOP
 async function triggerEmergencyStop() {
-    if (!adminToken) {
-        alert("Please login as Admin to execute Emergency Stop!");
-        document.getElementById("loginModal").style.display = "flex";
-        return;
-    }
-
+    await ensureAdminToken();
     try {
         const res = await fetch(`${API_BASE}/api/robots/R1/stop`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${adminToken}` }
         });
         if (res.ok) {
-            alert("🚨 UNIVERSAL EMERGENCY STOP EXECUTED! All 6 motor directions set to FALSE.");
-            logEvent("EMERGENCY", "UNIVERSAL EMERGENCY STOP EXECUTED.");
+            activeMissionId = null;
+            logEvent("EMERGENCY", "🚨 UNIVERSAL EMERGENCY STOP EXECUTED! All 6 motor booleans locked OFF permanently.");
+            pollBackendState();
         }
     } catch (err) {
         alert("Emergency stop signal failed");

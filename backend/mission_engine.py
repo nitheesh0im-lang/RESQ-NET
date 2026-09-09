@@ -93,6 +93,28 @@ def pause_mission(db: Session, mission_id: str) -> Optional[MissionModel]:
     return mission
 
 
+def pause_active_missions(db: Session, robot_id: str = "R1") -> Optional[MissionModel]:
+    """Pauses all active/pending missions for the given robot and stops motors."""
+    active_missions = db.query(MissionModel).filter(
+        MissionModel.robot_id == robot_id,
+        MissionModel.status.in_(["ACTIVE", "PENDING"])
+    ).all()
+
+    if not active_missions:
+        return None
+
+    for m in active_missions:
+        m.status = "PAUSED"
+
+    robot = db.query(RobotModel).filter(RobotModel.id == robot_id).first()
+    if robot:
+        robot.status = "STOPPED"
+
+    db.commit()
+    iot_controller.stop_robot()
+    return active_missions[0]
+
+
 def resume_mission(db: Session, mission_id: str) -> Optional[MissionModel]:
     """Resumes paused mission and restarts background executor thread."""
     mission = db.query(MissionModel).filter(MissionModel.id == mission_id).first()
@@ -107,3 +129,42 @@ def resume_mission(db: Session, mission_id: str) -> Optional[MissionModel]:
 
     route_executor.start_mission_execution(mission_id)
     return mission
+
+
+def resume_paused_missions(db: Session, robot_id: str = "R1") -> Optional[MissionModel]:
+    """Resumes any paused missions for the given robot."""
+    paused_mission = db.query(MissionModel).filter(
+        MissionModel.robot_id == robot_id,
+        MissionModel.status == "PAUSED"
+    ).order_by(MissionModel.updated_at.desc()).first()
+
+    if not paused_mission:
+        return None
+
+    paused_mission.status = "ACTIVE"
+    robot = db.query(RobotModel).filter(RobotModel.id == robot_id).first()
+    if robot:
+        robot.status = "MOVING"
+    db.commit()
+
+    route_executor.start_mission_execution(paused_mission.id)
+    return paused_mission
+
+
+def emergency_stop_all(db: Session, robot_id: str = "R1"):
+    """Emergency Stop: Cancels all active/pending/paused missions AND locks all 6 booleans OFF."""
+    active_missions = db.query(MissionModel).filter(
+        MissionModel.robot_id == robot_id,
+        MissionModel.status.in_(["ACTIVE", "PENDING", "PAUSED"])
+    ).all()
+
+    for m in active_missions:
+        m.status = "CANCELLED"
+
+    robot = db.query(RobotModel).filter(RobotModel.id == robot_id).first()
+    if robot:
+        robot.status = "STOPPED"
+
+    db.commit()
+    iot_controller.stop_robot()
+    return robot

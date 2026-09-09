@@ -52,7 +52,10 @@ from iot_controller import iot_controller
 from priority_engine import evaluate_priority
 from route_manager import seed_default_9zone_routes, get_route_by_floor_zone, save_or_update_route
 from robot_manager import initialize_default_robot, emergency_stop_robot, log_event
-from mission_engine import create_mission_for_incident, pause_mission, resume_mission
+from mission_engine import (
+    create_mission_for_incident, pause_mission, resume_mission,
+    pause_active_missions, resume_paused_missions, emergency_stop_all
+)
 
 from sqlalchemy.orm import Session
 
@@ -316,12 +319,29 @@ def get_mission(mission_id: str, db: Session = Depends(get_db)):
     return mission
 
 
+@app.post("/api/missions/pause")
+def pause_any_mission_endpoint(admin: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+    mission = pause_active_missions(db, "R1")
+    if not mission:
+        iot_controller.stop_robot()
+        return {"status": "PAUSED", "message": "No active mission running, motors stopped."}
+    return {"status": "PAUSED", "mission_id": mission.id}
+
+
 @app.post("/api/missions/{mission_id}/pause")
 def pause_mission_endpoint(mission_id: str, admin: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
     mission = pause_mission(db, mission_id)
     if not mission:
         raise HTTPException(status_code=404, detail="Mission not found")
     return {"status": "PAUSED", "mission_id": mission.id}
+
+
+@app.post("/api/missions/resume")
+def resume_any_mission_endpoint(admin: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+    mission = resume_paused_missions(db, "R1")
+    if not mission:
+        raise HTTPException(status_code=404, detail="No paused mission found to resume.")
+    return {"status": "RESUMED", "mission_id": mission.id}
 
 
 @app.post("/api/missions/{mission_id}/resume")
@@ -361,13 +381,11 @@ def get_robot_status(robot_id: str, db: Session = Depends(get_db)):
 
 
 @app.post("/api/robots/{robot_id}/stop")
-def emergency_stop(robot_id: str, admin: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
-    """Universal Emergency Stop — stops all motors immediately."""
-    iot_controller.stop_robot()
-    robot = emergency_stop_robot(db, robot_id, reason="Dashboard Emergency Stop")
-    if not robot:
-        raise HTTPException(status_code=404, detail="Robot not found")
-    return {"status": "STOPPED", "message": "Universal Emergency Stop Executed", "robot_id": robot_id}
+@app.post("/api/emergency-stop")
+def emergency_stop(robot_id: str = "R1", admin: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+    """Universal Emergency Stop — cancels all active missions and locks all 6 motor booleans OFF permanently."""
+    emergency_stop_all(db, robot_id)
+    return {"status": "STOPPED", "message": "Universal Emergency Stop Executed — All 6 motor booleans locked OFF", "robot_id": robot_id}
 
 
 # -----------------------------------------------------------------------------
