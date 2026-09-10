@@ -5,11 +5,14 @@
 
 // If opened via 127.0.0.1/localhost (same machine), use localhost.
 // If opened via the server's real IP (phone, tablet, other PC), use that IP.
-// Auto-detects Backend API URL: supports local dev (http://...:8000) and production cloud HTTPS (https://domain.com)
-const API_BASE = (() => {
+// Auto-detects Backend API URL with live cloud fallback (https://omni-boy.onrender.com)
+let API_BASE = (() => {
     const origin = window.location.origin;
     const host = window.location.hostname;
-    if (origin.startsWith("file://") || host === "127.0.0.1" || host === "localhost") {
+    if (origin.startsWith("file://")) {
+        return "https://omni-boy.onrender.com";
+    }
+    if (host === "127.0.0.1" || host === "localhost") {
         return "http://127.0.0.1:8000";
     }
     return origin;
