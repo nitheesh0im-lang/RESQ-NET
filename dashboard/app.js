@@ -117,20 +117,28 @@ function setupEventListeners() {
     document.getElementById("loginForm").addEventListener("submit", handleLogin);
 }
 
-// Check stored token or auto-login with default credentials
-async function initAuthUI() {
+// Update Auth Badge UI
+function updateAuthBadgeUI(isLoggedIn) {
     const badge = document.getElementById("userRoleBadge");
     const btn = document.getElementById("btnLoginModal");
+    if (!badge || !btn) return;
 
-    if (adminToken) {
+    if (isLoggedIn && adminToken) {
         badge.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#52C41A;"></i> Logged in as Admin`;
         btn.innerHTML = `<i class="fa-solid fa-power-off"></i> Logout`;
         btn.style.background = "#EF4444";
         btn.title = "Click to Logout of Admin session";
-        return;
+    } else {
+        badge.innerHTML = `<i class="fa-solid fa-user-xmark"></i> Guest / Logged Out`;
+        btn.innerHTML = `<i class="fa-solid fa-lock"></i> Click to Login`;
+        btn.style.background = "var(--soft-green)";
     }
+}
 
-    // Try auto-login with standard admin credentials for seamless control
+// Auto Login as Admin or Refresh Token
+async function ensureAdminToken(forceRefresh = false) {
+    if (adminToken && !forceRefresh) return adminToken;
+
     try {
         const res = await fetch(`${API_BASE}/api/auth/login`, {
             method: "POST",
@@ -141,20 +149,48 @@ async function initAuthUI() {
         if (res.ok) {
             adminToken = data.access_token;
             localStorage.setItem("resq_admin_token", adminToken);
-            badge.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#52C41A;"></i> Logged in as Admin`;
-            btn.innerHTML = `<i class="fa-solid fa-power-off"></i> Logout`;
-            btn.style.background = "#EF4444";
-            btn.title = "Click to Logout of Admin session";
-            logEvent("Auth", "Auto-authenticated Admin session.");
-            return;
+            updateAuthBadgeUI(true);
+            return adminToken;
         }
     } catch (e) {
-        console.warn("Auto admin auth offline check.");
+        console.warn("Auto admin auth check.");
+    }
+    return null;
+}
+
+// Universal fetch wrapper with auto 401 token refresh & retry
+async function fetchWithAdminAuth(url, options = {}) {
+    await ensureAdminToken();
+
+    options.headers = options.headers || {};
+    if (adminToken) {
+        options.headers["Authorization"] = `Bearer ${adminToken}`;
     }
 
-    badge.innerHTML = `<i class="fa-solid fa-user-xmark"></i> Guest / Logged Out`;
-    btn.innerHTML = `<i class="fa-solid fa-lock"></i> Click to Login`;
-    btn.style.background = "var(--soft-green)";
+    let res = await fetch(url, options);
+
+    // If token was expired or invalid (401), clear local token, re-authenticate as admin, and retry
+    if (res.status === 401) {
+        localStorage.removeItem("resq_admin_token");
+        adminToken = "";
+        await ensureAdminToken(true);
+
+        if (adminToken) {
+            options.headers["Authorization"] = `Bearer ${adminToken}`;
+        }
+        res = await fetch(url, options);
+    }
+
+    return res;
+}
+
+// Check stored token or auto-login with default credentials
+async function initAuthUI() {
+    if (!adminToken) {
+        await ensureAdminToken(true);
+    } else {
+        updateAuthBadgeUI(true);
+    }
 }
 
 // Login Handler
@@ -175,7 +211,7 @@ async function handleLogin(e) {
             adminToken = data.access_token;
             localStorage.setItem("resq_admin_token", adminToken);
             document.getElementById("loginModal").style.display = "none";
-            initAuthUI();
+            updateAuthBadgeUI(true);
             logEvent("Auth", `Successfully logged in as Admin (${data.name || username})`);
         } else {
             if (errEl) {
@@ -199,9 +235,8 @@ async function handleLogin(e) {
 async function deleteIncident(id) {
     if (!confirm(`Delete test SOS incident ${id}?`)) return;
     try {
-        const res = await fetch(`${API_BASE}/api/incidents/${id}`, {
-            method: "DELETE",
-            headers: { "Authorization": `Bearer ${adminToken}` }
+        const res = await fetchWithAdminAuth(`${API_BASE}/api/incidents/${id}`, {
+            method: "DELETE"
         });
         if (res.ok) {
             if (selectedIncidentId === id) {
@@ -223,9 +258,8 @@ async function deleteIncident(id) {
 async function clearAllIncidents() {
     if (!confirm("Are you sure you want to delete ALL test SOS incidents?")) return;
     try {
-        const res = await fetch(`${API_BASE}/api/incidents`, {
-            method: "DELETE",
-            headers: { "Authorization": `Bearer ${adminToken}` }
+        const res = await fetchWithAdminAuth(`${API_BASE}/api/incidents`, {
+            method: "DELETE"
         });
         if (res.ok) {
             selectedIncidentId = null;
@@ -516,12 +550,9 @@ async function saveZoneRoute() {
     };
 
     try {
-        const res = await fetch(`${API_BASE}/api/routes/${encodeURIComponent(floor)}/${encodeURIComponent(zone)}`, {
+        const res = await fetchWithAdminAuth(`${API_BASE}/api/routes/${encodeURIComponent(floor)}/${encodeURIComponent(zone)}`, {
             method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${adminToken}`
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
         if (res.ok) {
@@ -588,31 +619,11 @@ async function dispatchRealRobot() {
         alert("Please select an SOS incident from the left panel first!");
         return;
     }
-    if (!adminToken) {
-        try {
-            const loginRes = await fetch(`${API_BASE}/api/auth/login`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: "admin1", password: "admin123" })
-            });
-            const loginData = await loginRes.json();
-            if (loginRes.ok) {
-                adminToken = loginData.access_token;
-                localStorage.setItem("resq_admin_token", adminToken);
-                initAuthUI();
-            }
-        } catch (e) {
-            console.error("Auto admin login error:", e);
-        }
-    }
 
     try {
-        const res = await fetch(`${API_BASE}/api/missions`, {
+        const res = await fetchWithAdminAuth(`${API_BASE}/api/missions`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${adminToken}`
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ incident_id: selectedIncidentId, robot_id: "R1" })
         });
         const data = await res.json();
@@ -634,36 +645,11 @@ async function dispatchRealRobot() {
     }
 }
 
-// Ensure admin token exists or attempt auto-auth
-async function ensureAdminToken() {
-    if (!adminToken) {
-        try {
-            const loginRes = await fetch(`${API_BASE}/api/auth/login`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: "admin1", password: "admin123" })
-            });
-            const loginData = await loginRes.json();
-            if (loginRes.ok) {
-                adminToken = loginData.access_token;
-                localStorage.setItem("resq_admin_token", adminToken);
-                initAuthUI();
-            }
-        } catch (e) {
-            console.error("Auto admin auth error:", e);
-        }
-    }
-}
-
 // Pause Mission
 async function pauseMission() {
-    await ensureAdminToken();
     try {
         const url = activeMissionId ? `${API_BASE}/api/missions/${activeMissionId}/pause` : `${API_BASE}/api/missions/pause`;
-        const res = await fetch(url, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${adminToken}` }
-        });
+        const res = await fetchWithAdminAuth(url, { method: "POST" });
         if (res.ok) {
             logEvent("Mission Control", "⏸️ Mission PAUSED — All motor movement halted.");
             pollBackendState();
@@ -677,13 +663,9 @@ async function pauseMission() {
 
 // Resume Mission
 async function resumeMission() {
-    await ensureAdminToken();
     try {
         const url = activeMissionId ? `${API_BASE}/api/missions/${activeMissionId}/resume` : `${API_BASE}/api/missions/resume`;
-        const res = await fetch(url, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${adminToken}` }
-        });
+        const res = await fetchWithAdminAuth(url, { method: "POST" });
         if (res.ok) {
             const data = await res.json();
             if (data.mission_id) activeMissionId = data.mission_id;
@@ -699,12 +681,8 @@ async function resumeMission() {
 
 // Universal Emergency STOP
 async function triggerEmergencyStop() {
-    await ensureAdminToken();
     try {
-        const res = await fetch(`${API_BASE}/api/robots/R1/stop`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${adminToken}` }
-        });
+        const res = await fetchWithAdminAuth(`${API_BASE}/api/robots/R1/stop`, { method: "POST" });
         if (res.ok) {
             activeMissionId = null;
             logEvent("EMERGENCY", "🚨 UNIVERSAL EMERGENCY STOP EXECUTED! All 6 motor booleans locked OFF permanently.");
