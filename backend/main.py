@@ -38,7 +38,7 @@ from models import (
 )
 from auth import (
     hash_password, verify_password, create_access_token,
-    get_current_user, require_admin
+    get_current_user, get_optional_current_user, require_admin
 )
 from schemas import (
     UserRegister, UserLogin, TokenResponse, UserResponse,
@@ -190,7 +190,7 @@ def login_user(payload: UserLogin, db: Session = Depends(get_db)):
 # 2. SOS INCIDENT APIs
 # -----------------------------------------------------------------------------
 @app.post("/api/sos", response_model=IncidentResponse)
-def submit_sos(payload: SOSCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+def submit_sos(payload: SOSCreate, current_user: UserModel = Depends(get_optional_current_user), db: Session = Depends(get_db)):
     inc_id = f"INC-{uuid.uuid4().hex[:6].upper()}"
     score, level, reason = evaluate_priority(
         urgency_level=payload.urgency,

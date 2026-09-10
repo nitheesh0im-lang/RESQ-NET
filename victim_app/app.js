@@ -43,8 +43,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // Auto Login as Victim User
-async function autoAuthenticateVictim() {
-    if (userToken) return;
+async function autoAuthenticateVictim(forceRefresh = false) {
+    if (userToken && !forceRefresh) return userToken;
 
     try {
         const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -56,10 +56,14 @@ async function autoAuthenticateVictim() {
         if (res.ok) {
             userToken = data.access_token;
             localStorage.setItem("resq_victim_token", userToken);
+            return userToken;
+        } else {
+            console.warn("Victim login attempt response:", data.detail);
         }
     } catch (err) {
         console.error("Auto login error:", err);
     }
+    return null;
 }
 
 // Fetch Browser / Phone GPS
@@ -89,7 +93,7 @@ function setupEventListeners() {
 // Send SOS Request to Backend
 async function sendEmergencySos() {
     if (!userToken) {
-        await autoAuthenticateVictim();
+        await autoAuthenticateVictim(true);
     }
 
     const payload = {
@@ -105,7 +109,7 @@ async function sendEmergencySos() {
         btnTriggerSos.disabled = true;
         btnTriggerSos.style.opacity = "0.6";
 
-        const res = await fetch(`${API_BASE}/api/sos`, {
+        let res = await fetch(`${API_BASE}/api/sos`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -113,6 +117,24 @@ async function sendEmergencySos() {
             },
             body: JSON.stringify(payload)
         });
+
+        // If stale or expired token returned 401, clear local token, re-authenticate, and retry once
+        if (res.status === 401) {
+            localStorage.removeItem("resq_victim_token");
+            userToken = "";
+            await autoAuthenticateVictim(true);
+
+            const headers = { "Content-Type": "application/json" };
+            if (userToken) {
+                headers["Authorization"] = `Bearer ${userToken}`;
+            }
+
+            res = await fetch(`${API_BASE}/api/sos`, {
+                method: "POST",
+                headers: headers,
+                body: JSON.stringify(payload)
+            });
+        }
 
         const data = await res.json();
         if (res.ok) {

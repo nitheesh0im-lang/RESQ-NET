@@ -55,6 +55,35 @@ def get_current_user(
     return user
 
 
+security_optional = HTTPBearer(auto_error=False)
+
+
+def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
+    db: Session = Depends(get_db)
+) -> UserModel:
+    """
+    Decodes JWT if present; if missing/invalid/expired, automatically falls back
+    to default victim account so emergency SOS signals are NEVER blocked.
+    """
+    if credentials and credentials.credentials:
+        try:
+            payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id: str = payload.get("sub")
+            if user_id:
+                user = db.query(UserModel).filter(UserModel.id == user_id).first()
+                if user:
+                    return user
+        except jwt.PyJWTError:
+            pass
+
+    # Fallback to default victim user
+    victim = db.query(UserModel).filter(UserModel.username == "victim1").first()
+    if not victim:
+        victim = db.query(UserModel).filter(UserModel.role == "VICTIM").first()
+    return victim
+
+
 def require_admin(current_user: UserModel = Depends(get_current_user)) -> UserModel:
     """FastAPI Dependency: Enforces ADMIN role access control."""
     if current_user.role.upper() != "ADMIN":
