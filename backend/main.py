@@ -365,7 +365,9 @@ def get_iot_state():
 @app.post("/api/iot/set/{direction}")
 def set_manual_direction(direction: str):
     """Manual direction control from dashboard or testing."""
-    result = iot_controller.set_direction(direction.upper())
+    dir_upper = direction.upper()
+    result = iot_controller.set_direction(dir_upper)
+    sim_controller.set_direction(dir_upper)
     return {"status": "SUCCESS", "active_direction": result["active_direction"], "iot_state": result}
 
 
@@ -382,7 +384,9 @@ def get_simulation_state():
 @app.post("/api/simulation/set/{direction}")
 def set_simulation_direction(direction: str):
     """Dashboard simulation controller sets direction for Unity 3D engine."""
-    result = sim_controller.set_direction(direction.upper())
+    dir_upper = direction.upper()
+    result = sim_controller.set_direction(dir_upper)
+    iot_controller.set_direction(dir_upper)
     return {"status": "SUCCESS", "active_direction": result["active_direction"], "simulation_state": result}
 
 
